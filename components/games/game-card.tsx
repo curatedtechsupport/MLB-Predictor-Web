@@ -5,6 +5,7 @@ import { ConfidenceBadge } from "@/components/ui/confidence-badge";
 import type { Game, Prediction } from "@/lib/api/types";
 import { gameTimeShort } from "@/lib/format";
 import { WinProbBar } from "./win-prob-bar";
+import { LiveStatusBadge } from "./live-status-badge";
 
 export function GameCard({
   game,
@@ -20,6 +21,9 @@ export function GameCard({
     return null;
   }
 
+  const status = (game.status ?? "").toLowerCase();
+  const isLive = status === "live";
+
   return (
     <Link
       href={`/games/${game.game_id}`}
@@ -28,19 +32,24 @@ export function GameCard({
       <Card className="transition-all duration-200 hover:border-primary/40 group-focus-visible:ring-2 group-focus-visible:ring-ring">
         <CardContent className="flex flex-col gap-4 p-5">
           {/* Header row: time + status */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <span className="font-mono text-xs text-muted-foreground tabular">
               {gameTimeShort(game.game_datetime)}
             </span>
-            <span className="label">
-              {game.status?.toLowerCase() === "live"
-                ? "Live"
-                : game.status?.toLowerCase() === "final"
+            {isLive ? (
+              <LiveStatusBadge
+                gameId={game.game_id}
+                initialStatus={game.status}
+              />
+            ) : (
+              <span className="label">
+                {status === "final"
                   ? "Final"
                   : game.lineup_official
                     ? "Lineup set"
                     : "Scheduled"}
-            </span>
+              </span>
+            )}
           </div>
 
           {/* Matchup */}
