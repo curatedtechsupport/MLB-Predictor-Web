@@ -8,22 +8,53 @@ import { cn } from "@/lib/utils";
  *
  *  width / height ratio is locked to 2:1 (semicircle) — gauge is responsive
  *  via SVG viewBox.
+ *
+ *  M6.5: when `liveHomePct` / `liveAwayPct` are provided, the gauge reads
+ *  those values instead of the static prediction and a small "LIVE" pill
+ *  appears above the percentage. The arcs animate (CSS transition on
+ *  `stroke-dasharray`) over 600ms so consecutive ticks feel continuous,
+ *  not jumpy.
  */
 export function WinProbGauge({
   homeAbbr,
   awayAbbr,
   homePct,
   awayPct,
+  liveHomePct,
+  liveAwayPct,
+  isLive = false,
   className,
 }: {
   homeAbbr: string;
   awayAbbr: string;
   homePct: number | string;
   awayPct: number | string;
+  /** When provided, overrides homePct for the rendered arc. */
+  liveHomePct?: number | string | null;
+  /** When provided, overrides awayPct for the rendered arc. */
+  liveAwayPct?: number | string | null;
+  /** When true, displays the LIVE indicator chip. */
+  isLive?: boolean;
   className?: string;
 }) {
-  const home = Math.max(0, Math.min(100, num(homePct)));
-  const away = Math.max(0, Math.min(100, num(awayPct)));
+  const liveHome =
+    liveHomePct !== undefined && liveHomePct !== null
+      ? num(liveHomePct)
+      : null;
+  const liveAway =
+    liveAwayPct !== undefined && liveAwayPct !== null
+      ? num(liveAwayPct)
+      : null;
+
+  const home = Math.max(
+    0,
+    Math.min(100, liveHome !== null ? liveHome : num(homePct)),
+  );
+  const away = Math.max(
+    0,
+    Math.min(100, liveAway !== null ? liveAway : num(awayPct)),
+  );
+
   const dominantSide = home >= away ? "home" : "away";
   const dominantAbbr = dominantSide === "home" ? homeAbbr : awayAbbr;
   const dominantPct = dominantSide === "home" ? home : away;
@@ -40,8 +71,25 @@ export function WinProbGauge({
   const awayLen = (away / 100) * quarter;
   const homeLen = (home / 100) * quarter;
 
+  // Slightly faster transition than the bar (600ms) — feels right for the
+  // larger geometric change as the gauge swings between two values.
+  const arcTransition = "stroke-dasharray 600ms ease-out";
+
   return (
     <div className={cn("flex flex-col items-center", className)}>
+      {isLive ? (
+        <span
+          className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.2em] text-red-500"
+          aria-live="polite"
+        >
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
+          </span>
+          Live
+        </span>
+      ) : null}
+
       <svg
         viewBox="0 0 200 110"
         className="h-auto w-full max-w-md"
@@ -66,7 +114,7 @@ export function WinProbGauge({
           strokeDasharray={`${awayLen} ${quarter}`}
           // Fill direction: from center outward = path start is center
           pathLength={quarter}
-          style={{ transition: "stroke-dasharray 700ms ease-out" }}
+          style={{ transition: arcTransition }}
         />
         {/* Home arc — right side, drawn from center to 3 o'clock */}
         <path
@@ -77,7 +125,7 @@ export function WinProbGauge({
           strokeLinecap="round"
           strokeDasharray={`${homeLen} ${quarter}`}
           pathLength={quarter}
-          style={{ transition: "stroke-dasharray 700ms ease-out" }}
+          style={{ transition: arcTransition }}
         />
         {/* Center hairline */}
         <line
