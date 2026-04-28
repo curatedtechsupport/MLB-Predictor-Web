@@ -83,7 +83,11 @@ export default async function GameDetailPage({ params }: PageProps) {
           {prediction.confidence ? (
             <ConfidenceBadge
               label={prediction.confidence}
-              score={prediction.confidence_score ?? null}
+              score={
+                prediction.confidence_score !== null && prediction.confidence_score !== undefined
+                  ? num(prediction.confidence_score)
+                  : null
+              }
               className="text-sm"
             />
           ) : null}
