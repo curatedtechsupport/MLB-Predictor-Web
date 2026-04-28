@@ -14,16 +14,20 @@
  */
 import { z } from "zod";
 
-// FastAPI emits Decimal as string. Coerce to number at the schema boundary.
-const decimal = z.preprocess(
-  (v) => (v === null || v === undefined ? null : Number(v)),
-  z.number().nullable(),
-) as z.ZodType<number | null, z.ZodTypeDef, string | number | null | undefined>; 
+// Accept null/undefined/string/number; emit number | null. Coerces strings
+// (Decimal serialized as string) to numbers via Number(); preserves null.
+const decimal = z
+  .union([z.number(), z.string(), z.null(), z.undefined()])
+  .transform((v) => {
+    if (v === null || v === undefined) return null;
+    const n = typeof v === "number" ? v : Number(v);
+    return Number.isFinite(n) ? n : null;
+  });
 
-const decimalRequired = z.preprocess(
-  (v) => Number(v),
-  z.number(),
-) as z.ZodType<number, z.ZodTypeDef, string | number>;
+// Like decimal but rejects null. Used for fields the backend always emits.
+const decimalRequired = z
+  .union([z.number(), z.string()])
+  .transform((v) => (typeof v === "number" ? v : Number(v)));
 
 // --- Reference ---
 export const TeamMini = z.object({
