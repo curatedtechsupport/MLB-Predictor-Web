@@ -11,10 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfidenceBadge } from "@/components/ui/confidence-badge";
 import { FactorBreakdownChart } from "@/components/games/factor-breakdown-chart";
+import { LiveGameSection } from "@/components/games/live-game-section";
 import { MarketLinesTable } from "@/components/games/market-lines-table";
 import { MonteCarloChart } from "@/components/games/monte-carlo-chart";
 import { ValuePicksPanel } from "@/components/games/value-picks-panel";
-import { WinProbGauge } from "@/components/games/win-prob-gauge";
 import type { MarketComparison } from "@/lib/api/types";
 import { gameTime, num, pct } from "@/lib/format";
 
@@ -58,6 +58,10 @@ export default async function GameDetailPage({ params }: PageProps) {
   const homePct = num(prediction.home_win_pct);
   const awayPct = num(prediction.away_win_pct);
 
+  // We let the client subscribe whenever the game *might* be live or about
+  // to be. The hook itself is cheap when the backend says Final — backend
+  // emits one tick + closes, hook tears down. This means a final-game
+  // page still gets a clean "Final" badge without an error toast.
   return (
     <div className="container py-8 md:py-10">
       {/* Back link */}
@@ -95,21 +99,15 @@ export default async function GameDetailPage({ params }: PageProps) {
 
       <div className="rule mt-6" />
 
-      {/* Top section: gauge + market comparison strip */}
+      {/* Top section: live gauge + market comparison strip */}
       <section className="mt-8 grid gap-6 lg:grid-cols-[1fr,1fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Win probability</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <WinProbGauge
-              homeAbbr={home_team.abbr}
-              awayAbbr={away_team.abbr}
-              homePct={homePct}
-              awayPct={awayPct}
-            />
-          </CardContent>
-        </Card>
+        <LiveGameSection
+          gameId={id}
+          homeAbbr={home_team.abbr}
+          awayAbbr={away_team.abbr}
+          initialHomePct={homePct}
+          initialAwayPct={awayPct}
+        />
 
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
