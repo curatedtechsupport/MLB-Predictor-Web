@@ -18,11 +18,12 @@ import { z } from "zod";
 const decimal = z.preprocess(
   (v) => (v === null || v === undefined ? null : Number(v)),
   z.number().nullable(),
-);
+) as z.ZodType<number | null, z.ZodTypeDef, string | number | null | undefined>; 
+
 const decimalRequired = z.preprocess(
   (v) => Number(v),
   z.number(),
-);
+) as z.ZodType<number, z.ZodTypeDef, string | number>;
 
 // --- Reference ---
 export const TeamMini = z.object({
