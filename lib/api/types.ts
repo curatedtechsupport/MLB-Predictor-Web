@@ -123,7 +123,7 @@ export const FactorBreakdownItem = z.object({
   weight: z.number(),
   log_odds_delta: z.number(),
   favors: z.string(), // "home" | "away" | "neutral"
-  confidence: z.number().min(0).max(1).default(1),
+  confidence: z.number().min(0).max(1),
   detail: z.record(z.unknown()).nullable().optional(),
 });
 export type FactorBreakdownItem = z.infer<typeof FactorBreakdownItem>;
