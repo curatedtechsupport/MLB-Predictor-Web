@@ -20,7 +20,7 @@ const config: Config = {
         // Editorial display serif — pairs with the analytical body.
         display: ["var(--font-newsreader)", "Georgia", "serif"],
         // Body / UI sans.
-        sans: ["var(--font-geist)", "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ["var(--font-geist-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
         // Stats and numerics. Tabular-num enabled in CSS.
         mono: ["var(--font-geist-mono)", "ui-monospace", "monospace"],
       },
