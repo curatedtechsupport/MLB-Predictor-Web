@@ -139,7 +139,7 @@ export const MarketComparison = z.object({
   home_market_implied_pct: z.number().nullable().optional(),
   edge_pct: z.number().nullable().optional(),
   kelly_fraction: z.number().nullable().optional(),
-  flagged_value: z.boolean().default(false),
+  flagged_value: z.boolean().catch(false).default(false),
 });
 export type MarketComparison = z.infer<typeof MarketComparison>;
 
