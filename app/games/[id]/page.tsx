@@ -156,8 +156,16 @@ export default async function GameDetailPage({ params }: PageProps) {
             {monte_carlo ? (
               <MonteCarloChart
                 monteCarlo={monte_carlo}
-                predictedTotal={prediction.predicted_total ?? null}
-                predictedRunDiff={prediction.predicted_run_diff ?? null}
+                predictedTotal={
+                  prediction.predicted_total !== null && prediction.predicted_total !== undefined
+                    ? num(prediction.predicted_total)
+                    : null
+                }
+                predictedRunDiff={
+                  prediction.predicted_run_diff !== null && prediction.predicted_run_diff !== undefined
+                    ? num(prediction.predicted_run_diff)
+                    : null
+                }
               />
             ) : (
               <p className="text-sm text-muted-foreground">
