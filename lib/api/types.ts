@@ -216,5 +216,35 @@ export const HealthDeep = z.object({
 }).passthrough();
 export type HealthDeep = z.infer<typeof HealthDeep>;
 
+// --- Live game stream (M6.5) ---
+/**
+ * Mirrors `app/schemas.py:LiveGameTick`. One SSE event payload per play
+ * resolved by the MLB feed adapter. Fields are flat so the frontend can
+ * splice the tick straight into its prediction view-model without joins.
+ *
+ * `base_state` is a 3-bit string ("000" empty, "100" runner on 1B,
+ * "111" bases loaded). Encoded as string to dodge JSON's "0" coercion.
+ *
+ * `home_win_pct` is the *blended* live probability — pre-game prior
+ * decayed against the WPA table by inning. Always 0..100 to mirror
+ * Prediction.home_win_pct.
+ */
+export const LiveGameTick = z.object({
+  game_id: z.number(),
+  status: z.string(), // "Pre-Game" | "In Progress" | "Final" | ...
+  inning: z.number().nullable().optional(),
+  half: z.string().nullable().optional(), // "top" | "bottom" | null pre-game
+  score_home: z.number(),
+  score_away: z.number(),
+  base_state: z.string(), // "000" .. "111"
+  outs: z.number(),
+  home_win_pct: z.number(), // 0..100 (blended)
+  away_win_pct: z.number(), // 0..100
+  last_play: z.string().nullable().optional(),
+  ts: z.string(), // ISO datetime, server emit time
+  is_final: z.boolean(),
+});
+export type LiveGameTick = z.infer<typeof LiveGameTick>;
+
 // --- Convenience composite types ---
 export type GameWithPrediction = Game & { prediction: Prediction | null };
