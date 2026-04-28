@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Newsreader } from "next/font/google";
+import { Newsreader } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 
 import { TopNav } from "@/components/nav/top-nav";
 import { SiteFooter } from "@/components/nav/site-footer";
@@ -7,25 +9,23 @@ import { Providers } from "./providers";
 
 import "./globals.css";
 
+// Newsreader: pulled from Google Fonts. `adjustFontFallback: false` disables
+// Next 14's automatic fallback-metric computation, which is what produces
+// the "Failed to find font override values for font Newsreader" build
+// error on Vercel. Slight CLS regression in exchange for a reliable build.
 const newsreader = Newsreader({
   subsets: ["latin"],
   variable: "--font-newsreader",
   weight: ["400", "500", "600", "700"],
   style: ["normal", "italic"],
   display: "swap",
+  adjustFontFallback: false,
 });
 
-const geist = Geist({
-  subsets: ["latin"],
-  variable: "--font-geist",
-  display: "swap",
-});
-
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-geist-mono",
-  display: "swap",
-});
+// Geist Sans + Mono come from the dedicated `geist` package, which ships
+// the font binaries locally rather than fetching from Google Fonts (which
+// does not host Geist reliably). The package exposes `.variable` directly
+// as `--font-geist-sans` and `--font-geist-mono`. No constructor call.
 
 export const metadata: Metadata = {
   title: {
@@ -56,7 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${newsreader.variable} ${geist.variable} ${geistMono.variable}`}
+      className={`${newsreader.variable} ${GeistSans.variable} ${GeistMono.variable}`}
     >
       <body className="font-sans antialiased">
         <Providers>
