@@ -8,6 +8,18 @@
  *  - Plays nicely on both server and client (no `window` references).
  *
  *  All endpoints assume the backend is mounted at /api/v1.
+ *
+ *  IMPORTANT — z.output vs T:
+ *  The `call()` helper is generic over the schema type `S extends ZodTypeAny`
+ *  and returns `z.output<S> | null`. Earlier versions used a single-param
+ *  `z.ZodType<T>` form which, for schemas with `.transform()`, resolved `T`
+ *  to the *input* type — leaking `string | number` into props that expected
+ *  clean `number`. The current form forces post-transform output everywhere.
+ *
+ *  Each public function additionally annotates its return type explicitly
+ *  (`Promise<X | null>`) as belt-and-braces. If a future tweak somehow
+ *  regresses the helper's inference, the explicit annotations still pin
+ *  every endpoint to the right shape.
  */
 import { z } from "zod";
 
@@ -22,6 +34,18 @@ import {
   Team,
   TeamStats,
   ValuePick,
+} from "./types";
+import type {
+  Game as GameT,
+  GameOdds as GameOddsT,
+  HealthDeep as HealthDeepT,
+  PitcherStats as PitcherStatsT,
+  Player as PlayerT,
+  Prediction as PredictionT,
+  PredictionBreakdown as PredictionBreakdownT,
+  Team as TeamT,
+  TeamStats as TeamStatsT,
+  ValuePick as ValuePickT,
 } from "./types";
 
 const RAW_BASE =
@@ -64,11 +88,19 @@ interface FetchOpts {
   signal?: AbortSignal;
 }
 
-async function call<T>(
+/**
+ * Schema-driven fetch.
+ *
+ *  Generic constraint `S extends z.ZodTypeAny` lets TypeScript see the full
+ *  schema type (input + output + def). The return type uses `z.output<S>`
+ *  to extract specifically the post-transform shape — which is what every
+ *  consumer expects (clean numbers, no string leakage from Decimal coercion).
+ */
+async function call<S extends z.ZodTypeAny>(
   url: string,
-  schema: z.ZodType<T>,
+  schema: S,
   opts: FetchOpts = {},
-): Promise<T | null> {
+): Promise<z.output<S> | null> {
   const init: RequestInit & { next?: { revalidate?: number; tags?: string[] } } = {
     headers: { Accept: "application/json" },
     signal: opts.signal,
@@ -99,12 +131,13 @@ async function call<T>(
     console.error("[api] schema mismatch", url, parsed.error.format());
     throw new ApiError(500, url, "schema validation failed");
   }
-  return parsed.data;
+  // safeParse returns the post-transform output — z.output<S>.
+  return parsed.data as z.output<S>;
 }
 
 /* ------------------------------------------------------------------ Games */
 
-export function getGamesToday(opts?: FetchOpts) {
+export function getGamesToday(opts?: FetchOpts): Promise<GameT[] | null> {
   // Schedule + scores change rapidly. 60s is the sweet spot.
   return call(`${V1}/games/today`, z.array(Game), {
     revalidate: 60,
@@ -113,7 +146,10 @@ export function getGamesToday(opts?: FetchOpts) {
   });
 }
 
-export function getGameById(gameId: number, opts?: FetchOpts) {
+export function getGameById(
+  gameId: number,
+  opts?: FetchOpts,
+): Promise<GameT | null> {
   return call(`${V1}/games/${gameId}`, Game, {
     revalidate: 60,
     tags: [`game:${gameId}`],
@@ -123,7 +159,9 @@ export function getGameById(gameId: number, opts?: FetchOpts) {
 
 /* ------------------------------------------------------------ Predictions */
 
-export function getPredictionsToday(opts?: FetchOpts) {
+export function getPredictionsToday(
+  opts?: FetchOpts,
+): Promise<PredictionT[] | null> {
   return call(`${V1}/predictions/today`, z.array(Prediction), {
     revalidate: 120,
     tags: ["predictions:today"],
@@ -131,7 +169,10 @@ export function getPredictionsToday(opts?: FetchOpts) {
   });
 }
 
-export function getPrediction(gameId: number, opts?: FetchOpts) {
+export function getPrediction(
+  gameId: number,
+  opts?: FetchOpts,
+): Promise<PredictionT | null> {
   return call(`${V1}/predictions/${gameId}`, Prediction, {
     revalidate: 120,
     tags: [`prediction:${gameId}`],
@@ -139,7 +180,10 @@ export function getPrediction(gameId: number, opts?: FetchOpts) {
   });
 }
 
-export function getPredictionBreakdown(gameId: number, opts?: FetchOpts) {
+export function getPredictionBreakdown(
+  gameId: number,
+  opts?: FetchOpts,
+): Promise<PredictionBreakdownT | null> {
   return call(`${V1}/predictions/${gameId}/breakdown`, PredictionBreakdown, {
     revalidate: 120,
     tags: [`prediction:${gameId}:breakdown`],
@@ -149,7 +193,7 @@ export function getPredictionBreakdown(gameId: number, opts?: FetchOpts) {
 
 /* ------------------------------------------------------------------- Odds */
 
-export function getOddsToday(opts?: FetchOpts) {
+export function getOddsToday(opts?: FetchOpts): Promise<GameOddsT[] | null> {
   return call(`${V1}/odds/today`, z.array(GameOdds), {
     revalidate: 60,
     tags: ["odds:today"],
@@ -157,7 +201,10 @@ export function getOddsToday(opts?: FetchOpts) {
   });
 }
 
-export function getOddsForGame(gameId: number, opts?: FetchOpts) {
+export function getOddsForGame(
+  gameId: number,
+  opts?: FetchOpts,
+): Promise<GameOddsT | null> {
   return call(`${V1}/odds/${gameId}`, GameOdds, {
     revalidate: 60,
     tags: [`odds:${gameId}`],
@@ -165,7 +212,10 @@ export function getOddsForGame(gameId: number, opts?: FetchOpts) {
   });
 }
 
-export function getOddsHistory(gameId: number, opts?: FetchOpts) {
+export function getOddsHistory(
+  gameId: number,
+  opts?: FetchOpts,
+): Promise<GameOddsT[] | null> {
   return call(`${V1}/odds/${gameId}/history`, z.array(GameOdds), {
     revalidate: 300,
     tags: [`odds:${gameId}:history`],
@@ -184,7 +234,7 @@ export interface ValuePicksFilters {
 export function getValuePicksToday(
   filters: ValuePicksFilters = {},
   opts?: FetchOpts,
-) {
+): Promise<ValuePickT[] | null> {
   const qs = new URLSearchParams();
   if (filters.min_edge !== undefined) qs.set("min_edge", String(filters.min_edge));
   if (filters.bet_type) qs.set("bet_type", filters.bet_type);
@@ -197,7 +247,10 @@ export function getValuePicksToday(
   });
 }
 
-export function getValuePicksForGame(gameId: number, opts?: FetchOpts) {
+export function getValuePicksForGame(
+  gameId: number,
+  opts?: FetchOpts,
+): Promise<ValuePickT[] | null> {
   return call(`${V1}/value-picks/${gameId}`, z.array(ValuePick), {
     revalidate: 90,
     tags: [`value-picks:${gameId}`],
@@ -207,7 +260,10 @@ export function getValuePicksForGame(gameId: number, opts?: FetchOpts) {
 
 /* ------------------------------------------------------------------ Teams */
 
-export function getTeam(teamId: number, opts?: FetchOpts) {
+export function getTeam(
+  teamId: number,
+  opts?: FetchOpts,
+): Promise<TeamT | null> {
   return call(`${V1}/teams/${teamId}`, Team, {
     revalidate: 3600,
     tags: [`team:${teamId}`],
@@ -215,7 +271,10 @@ export function getTeam(teamId: number, opts?: FetchOpts) {
   });
 }
 
-export function getTeamStats(teamId: number, opts?: FetchOpts) {
+export function getTeamStats(
+  teamId: number,
+  opts?: FetchOpts,
+): Promise<TeamStatsT | null> {
   return call(`${V1}/teams/${teamId}/stats`, TeamStats, {
     revalidate: 600,
     tags: [`team:${teamId}:stats`],
@@ -223,7 +282,10 @@ export function getTeamStats(teamId: number, opts?: FetchOpts) {
   });
 }
 
-export function getTeamRoster(teamId: number, opts?: FetchOpts) {
+export function getTeamRoster(
+  teamId: number,
+  opts?: FetchOpts,
+): Promise<PlayerT[] | null> {
   return call(`${V1}/teams/${teamId}/roster`, z.array(Player), {
     revalidate: 3600,
     tags: [`team:${teamId}:roster`],
@@ -231,7 +293,7 @@ export function getTeamRoster(teamId: number, opts?: FetchOpts) {
   });
 }
 
-export function listTeams(opts?: FetchOpts) {
+export function listTeams(opts?: FetchOpts): Promise<TeamT[] | null> {
   return call(`${V1}/teams`, z.array(Team), {
     revalidate: 86400,
     tags: ["teams"],
@@ -241,7 +303,10 @@ export function listTeams(opts?: FetchOpts) {
 
 /* ------------------------------------------------------------- Pitchers */
 
-export function getPitcher(playerId: number, opts?: FetchOpts) {
+export function getPitcher(
+  playerId: number,
+  opts?: FetchOpts,
+): Promise<PlayerT | null> {
   return call(`${V1}/pitchers/${playerId}`, Player, {
     revalidate: 3600,
     tags: [`pitcher:${playerId}`],
@@ -249,7 +314,10 @@ export function getPitcher(playerId: number, opts?: FetchOpts) {
   });
 }
 
-export function getPitcherStats(playerId: number, opts?: FetchOpts) {
+export function getPitcherStats(
+  playerId: number,
+  opts?: FetchOpts,
+): Promise<PitcherStatsT | null> {
   return call(`${V1}/pitchers/${playerId}/stats`, PitcherStats, {
     revalidate: 3600,
     tags: [`pitcher:${playerId}:stats`],
@@ -259,7 +327,9 @@ export function getPitcherStats(playerId: number, opts?: FetchOpts) {
 
 /* -------------------------------------------------------------- Health */
 
-export function getHealthDeep(opts?: FetchOpts) {
+export function getHealthDeep(
+  opts?: FetchOpts,
+): Promise<HealthDeepT | null> {
   return call(`${API_BASE}/admin/health/deep`, HealthDeep, {
     revalidate: 30,
     silentStatuses: new Set([404, 401]),
