@@ -8,6 +8,15 @@
  *  - Lets us add narrow custom validators (e.g. enum for `favors`).
  *  - Keeps the runtime contract auditable in a single ~150-line file.
  *
+ * IMPORTANT — z.output vs z.infer:
+ *  Every exported `type Foo = z.output<typeof Foo>` below uses `z.output`,
+ *  not `z.infer`. This matters because the `decimal` helper uses
+ *  `.transform()`, which makes its input and output types differ
+ *  (input: `string | number | null | undefined`, output: `number | null`).
+ *  `z.infer` collapses to the input shape in some compositions; `z.output`
+ *  always returns the post-transform shape. Components consume output
+ *  types — clean numbers, no string leakage.
+ *
  * If/when the API surface stabilizes further, swap this for `openapi-zod-client`
  * — every consumer below imports from `@/lib/api/types` so the migration is
  * mechanical.
@@ -16,9 +25,12 @@ import { z } from "zod";
 
 // Accept null/undefined/string/number; emit number | null. Coerces strings
 // (Decimal serialized as string) to numbers via Number(); preserves null.
+// Explicit return-type annotation on the transform forces TypeScript to
+// resolve the output as `number | null`, not as the inferred-from-implementation
+// union that would include the input branches.
 const decimal = z
   .union([z.number(), z.string(), z.null(), z.undefined()])
-  .transform((v) => {
+  .transform((v): number | null => {
     if (v === null || v === undefined) return null;
     const n = typeof v === "number" ? v : Number(v);
     return Number.isFinite(n) ? n : null;
@@ -27,7 +39,7 @@ const decimal = z
 // Like decimal but rejects null. Used for fields the backend always emits.
 const decimalRequired = z
   .union([z.number(), z.string()])
-  .transform((v) => (typeof v === "number" ? v : Number(v)));
+  .transform((v): number => (typeof v === "number" ? v : Number(v)));
 
 // --- Reference ---
 export const TeamMini = z.object({
@@ -35,7 +47,7 @@ export const TeamMini = z.object({
   abbr: z.string(),
   name: z.string(),
 });
-export type TeamMini = z.infer<typeof TeamMini>;
+export type TeamMini = z.output<typeof TeamMini>;
 
 export const Team = TeamMini.extend({
   league: z.string(),
@@ -43,7 +55,7 @@ export const Team = TeamMini.extend({
   timezone: z.string(),
   ballpark_id: z.number().nullable().optional(),
 });
-export type Team = z.infer<typeof Team>;
+export type Team = z.output<typeof Team>;
 
 export const Ballpark = z.object({
   ballpark_id: z.number(),
@@ -58,7 +70,7 @@ export const Ballpark = z.object({
   park_factor_hr: decimal.optional(),
   park_factor_hits: decimal.optional(),
 });
-export type Ballpark = z.infer<typeof Ballpark>;
+export type Ballpark = z.output<typeof Ballpark>;
 
 // --- Stats ---
 export const TeamStats = z.object({
@@ -73,7 +85,7 @@ export const TeamStats = z.object({
   bullpen_fip: decimal.optional(),
   pythag_win_pct: decimal.optional(),
 });
-export type TeamStats = z.infer<typeof TeamStats>;
+export type TeamStats = z.output<typeof TeamStats>;
 
 export const PitcherStats = z.object({
   player_id: z.number(),
@@ -91,7 +103,7 @@ export const PitcherStats = z.object({
   hr_per_9: decimal.optional(),
   last5_fip: decimal.optional(),
 });
-export type PitcherStats = z.infer<typeof PitcherStats>;
+export type PitcherStats = z.output<typeof PitcherStats>;
 
 export const Player = z.object({
   player_id: z.number(),
@@ -102,7 +114,7 @@ export const Player = z.object({
   throws: z.string().nullable().optional(),
   active: z.boolean(),
 });
-export type Player = z.infer<typeof Player>;
+export type Player = z.output<typeof Player>;
 
 // --- Games ---
 export const Game = z.object({
@@ -120,7 +132,7 @@ export const Game = z.object({
   home_score: z.number().nullable().optional(),
   away_score: z.number().nullable().optional(),
 });
-export type Game = z.infer<typeof Game>;
+export type Game = z.output<typeof Game>;
 
 // --- Predictions ---
 export const FactorBreakdownItem = z.object({
@@ -131,14 +143,14 @@ export const FactorBreakdownItem = z.object({
   confidence: z.number().min(0).max(1),
   detail: z.record(z.unknown()).nullable().optional(),
 });
-export type FactorBreakdownItem = z.infer<typeof FactorBreakdownItem>;
+export type FactorBreakdownItem = z.output<typeof FactorBreakdownItem>;
 
 export const MonteCarloSummary = z.object({
   iterations: z.number(),
   home_win_distribution: z.record(z.number()),
   away_win_distribution: z.record(z.number()),
 });
-export type MonteCarloSummary = z.infer<typeof MonteCarloSummary>;
+export type MonteCarloSummary = z.output<typeof MonteCarloSummary>;
 
 export const MarketComparison = z.object({
   home_market_implied_pct: z.number().nullable().optional(),
@@ -146,7 +158,7 @@ export const MarketComparison = z.object({
   kelly_fraction: z.number().nullable().optional(),
   flagged_value: z.boolean(),
 });
-export type MarketComparison = z.infer<typeof MarketComparison>;
+export type MarketComparison = z.output<typeof MarketComparison>;
 
 export const Prediction = z.object({
   prediction_id: z.number(),
@@ -160,7 +172,7 @@ export const Prediction = z.object({
   confidence_score: decimal.optional(),
   model_version: z.string(),
 });
-export type Prediction = z.infer<typeof Prediction>;
+export type Prediction = z.output<typeof Prediction>;
 
 export const PredictionBreakdown = z.object({
   game_id: z.number(),
@@ -172,7 +184,7 @@ export const PredictionBreakdown = z.object({
   monte_carlo: MonteCarloSummary.nullable().optional(),
   market_comparison: MarketComparison.nullable().optional(),
 });
-export type PredictionBreakdown = z.infer<typeof PredictionBreakdown>;
+export type PredictionBreakdown = z.output<typeof PredictionBreakdown>;
 
 // --- Sportsbook odds ---
 export const SportsbookOdds = z.object({
@@ -187,7 +199,7 @@ export const SportsbookOdds = z.object({
   over_odds: z.number().nullable().optional(),
   under_odds: z.number().nullable().optional(),
 });
-export type SportsbookOdds = z.infer<typeof SportsbookOdds>;
+export type SportsbookOdds = z.output<typeof SportsbookOdds>;
 
 export const GameOdds = z.object({
   game_id: z.number(),
@@ -195,7 +207,7 @@ export const GameOdds = z.object({
   consensus_home_pct: z.number().nullable().optional(),
   consensus_away_pct: z.number().nullable().optional(),
 });
-export type GameOdds = z.infer<typeof GameOdds>;
+export type GameOdds = z.output<typeof GameOdds>;
 
 // --- Value picks ---
 export const ValuePick = z.object({
@@ -210,7 +222,7 @@ export const ValuePick = z.object({
   kelly_fraction: decimal.optional(),
   flagged_at: z.string(),
 });
-export type ValuePick = z.infer<typeof ValuePick>;
+export type ValuePick = z.output<typeof ValuePick>;
 
 // --- Health ---
 export const HealthDeep = z.object({
@@ -219,7 +231,7 @@ export const HealthDeep = z.object({
   counts: z.record(z.number()).optional(),
   last_refresh: z.string().nullable().optional(),
 }).passthrough();
-export type HealthDeep = z.infer<typeof HealthDeep>;
+export type HealthDeep = z.output<typeof HealthDeep>;
 
 // --- Live game stream (M6.5) ---
 /**
@@ -249,7 +261,7 @@ export const LiveGameTick = z.object({
   ts: z.string(), // ISO datetime, server emit time
   is_final: z.boolean(),
 });
-export type LiveGameTick = z.infer<typeof LiveGameTick>;
+export type LiveGameTick = z.output<typeof LiveGameTick>;
 
 // --- Convenience composite types ---
 export type GameWithPrediction = Game & { prediction: Prediction | null };
